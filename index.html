@@ -5,7 +5,175 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>K-Beauty Product Adder</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js">
+// ── Competitor price lookup ───────────────────────────────────
+// Both niasha.ch and coree.ch run on Shopify.
+// Shopify exposes a public JSON endpoint at /products/[handle].js
+// We fetch it via Claude AI (web_search tool) since direct cross-origin
+// calls to third-party sites are blocked by CORS in the browser.
+// The AI searches for the product on both sites and returns structured prices.
+
+async function lookupCompetitorPrices() {
+  const title = gv('f-title');
+  const vendor = gv('f-vendor');
+  if (!title && !vendor) {
+    alert('Please fill in the product title first.');
+    return;
+  }
+
+  const btn = document.getElementById('btn-competitor');
+  const spinner = document.getElementById('competitor-spinner');
+  const box = document.getElementById('competitor-box');
+  const rows = document.getElementById('competitor-rows');
+
+  btn.disabled = true;
+  btn.textContent = 'Searching...';
+  spinner.style.display = 'block';
+  box.style.display = 'none';
+  rows.innerHTML = '';
+
+  const query = [vendor, title].filter(Boolean).join(' ');
+
+  try {
+    const res = await fetch(CLAUDE_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+        messages: [{
+          role: 'user',
+          content: `You are a pricing research assistant for a Swiss K-beauty store.
+
+Search for this product on niasha.ch AND coree.ch: "${query}"
+
+For each site, find the current CHF price. Return ONLY valid JSON, no markdown:
+{
+  "results": [
+    {
+      "site": "niasha.ch",
+      "found": true,
+      "price": 13.34,
+      "comparePrice": 14.50,
+      "url": "https://niasha.ch/products/...",
+      "inStock": true
+    },
+    {
+      "site": "coree.ch",
+      "found": true,
+      "price": 16.00,
+      "comparePrice": 21.00,
+      "url": "https://coree.ch/products/...",
+      "inStock": true
+    }
+  ]
+}
+
+If a product is not found on a site, set found: false and omit price/url.
+Only return CHF prices. Do not include markdown backticks.`
+        }]
+      })
+    });
+
+    const data = await res.json();
+
+    // Extract text from response (may include tool_use blocks)
+    const textBlocks = (data.content || []).filter(b => b.type === 'text');
+    const raw = textBlocks.map(b => b.text).join('');
+    const clean = raw.replace(/```json|```/g, '').trim();
+
+    let parsed;
+    try {
+      parsed = JSON.parse(clean);
+    } catch(e) {
+      // Try to extract JSON from within the text
+      const match = clean.match(/\{[\s\S]*\}/);
+      if (match) parsed = JSON.parse(match[0]);
+      else throw new Error('Could not parse competitor prices');
+    }
+
+    renderCompetitorPrices(parsed.results || []);
+
+  } catch(err) {
+    console.error('Competitor lookup error:', err);
+    rows.innerHTML = '<div style="padding:10px 12px;font-size:13px;color:var(--gray-600);">Could not retrieve competitor prices. Try again.</div>';
+    box.style.display = 'block';
+  } finally {
+    spinner.style.display = 'none';
+    btn.disabled = false;
+    btn.textContent = 'Check competitor prices';
+  }
+}
+
+function renderCompetitorPrices(results) {
+  const box = document.getElementById('competitor-box');
+  const rows = document.getElementById('competitor-rows');
+  const ts = document.getElementById('competitor-ts');
+  const myPrice = parseFloat(gv('f-price')) || null;
+
+  const now = new Date();
+  ts.textContent = now.toLocaleTimeString('fr-CH', { hour: '2-digit', minute: '2-digit' });
+
+  if (!results || results.length === 0) {
+    rows.innerHTML = '<div style="padding:10px 12px;font-size:13px;color:var(--gray-600);">No results found on either site.</div>';
+    box.style.display = 'block';
+    return;
+  }
+
+  rows.innerHTML = results.map(r => {
+    if (!r.found) {
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid var(--gray-200);">
+        <div>
+          <a href="https://${r.site}" target="_blank" style="font-size:13px;font-weight:500;color:var(--gray-800);text-decoration:none;">${r.site}</a>
+        </div>
+        <span style="font-size:12px;color:var(--gray-400);">Not listed</span>
+      </div>`;
+    }
+
+    // Price comparison badge
+    let badge = '';
+    if (myPrice && r.price) {
+      const diff = myPrice - r.price;
+      const pct = Math.abs(Math.round((diff / r.price) * 100));
+      if (diff > 0.5) {
+        badge = `<span style="font-size:11px;padding:2px 7px;border-radius:4px;background:#FEF2F2;color:#991B1B;font-weight:500;">+${pct}% vs yours</span>`;
+      } else if (diff < -0.5) {
+        badge = `<span style="font-size:11px;padding:2px 7px;border-radius:4px;background:var(--teal-light);color:var(--teal-dark);font-weight:500;">${pct}% cheaper</span>`;
+      } else {
+        badge = `<span style="font-size:11px;padding:2px 7px;border-radius:4px;background:var(--gray-100);color:var(--gray-600);font-weight:500;">Same price</span>`;
+      }
+    }
+
+    const stockBadge = r.inStock === false
+      ? `<span style="font-size:11px;color:var(--gray-400);margin-left:6px;">Out of stock</span>`
+      : '';
+
+    const compareStr = r.comparePrice && r.comparePrice > r.price
+      ? `<span style="font-size:12px;color:var(--gray-400);text-decoration:line-through;margin-left:6px;">CHF ${r.comparePrice.toFixed(2)}</span>`
+      : '';
+
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid var(--gray-200);">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <a href="${r.url || 'https://'+r.site}" target="_blank" style="font-size:13px;font-weight:500;color:var(--gray-800);text-decoration:none;">${r.site}</a>
+        ${stockBadge}
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
+        ${badge}
+        <span style="font-size:14px;font-weight:600;color:var(--gray-800);">CHF ${r.price.toFixed(2)}</span>
+        ${compareStr}
+      </div>
+    </div>`;
+  }).join('');
+
+  // Remove last border
+  const lastRow = rows.querySelector('div:last-child');
+  if (lastRow) lastRow.style.borderBottom = 'none';
+
+  box.style.display = 'block';
+}
+
+</script>
 <style>
   :root {
     --coral: #D85A30;
@@ -572,7 +740,7 @@
 
     <div class="tab-nav">
       <button class="tab-btn active" onclick="switchTab('core')">Core</button>
-      <button class="tab-btn" onclick="switchTab('pricing')">Pricing & stock</button>
+      <button class="tab-btn" onclick="switchTab('pricing')">Stock & tax</button>
       <button class="tab-btn" onclick="switchTab('seo')">SEO & meta</button>
       <button class="tab-btn" onclick="switchTab('shipping')">Shipping</button>
     </div>
@@ -594,7 +762,7 @@
         </div>
         <div class="field-group">
           <label class="field-label">Type <span class="field-ai-tag">AI</span></label>
-          <input class="field-input" id="f-type" type="text" placeholder="e.g. Essence, Serum, Toner...">
+          <select class="field-select" id="f-type"><option value="">— Select type —</option><option value="CLEANSER">CLEANSER</option><option value="TONER">TONER</option><option value="MOISTURIZER">MOISTURIZER</option><option value="SERUM">SERUM</option><option value="EYE CARE">EYE CARE</option><option value="EXFOLIATOR">EXFOLIATOR</option><option value="SHEET MASKS">SHEET MASKS</option><option value="SUN CARE">SUN CARE</option><option value="ACCESSORIES">ACCESSORIES</option></select>
         </div>
         <div class="field-group">
           <label class="field-label">Product category <span class="field-ai-tag">AI</span></label>
@@ -642,8 +810,8 @@
       </div>
     </div>
 
-    <!-- Pricing & stock fields -->
-    <div class="card" id="tab-pricing" style="display:none;">
+
+      <div class="divider"></div>
       <div class="fields-grid">
         <div class="field-group">
           <label class="field-label">Price (CHF) <span class="field-required">*</span> <span class="field-ai-tag">AI</span></label>
@@ -657,6 +825,20 @@
           <label class="field-label">Cost per item (CHF)</label>
           <input class="field-input" id="f-cost" type="number" step="0.01" placeholder="0.00">
         </div>
+        <div class="field-group" style="display:flex;flex-direction:column;justify-content:flex-end;">
+          <button class="btn btn-ghost" onclick="lookupCompetitorPrices()" id="btn-competitor" style="width:100%;font-size:13px;">Check competitor prices</button>
+        </div>
+      </div>
+      <div id="competitor-spinner" style="display:none;text-align:center;padding:12px;font-size:13px;color:var(--gray-400);"><span style="display:inline-block;width:14px;height:14px;border:2px solid var(--gray-200);border-top-color:var(--coral);border-radius:50%;animation:spin 0.7s linear infinite;vertical-align:middle;margin-right:6px;"></span>Checking niasha.ch &amp; coree.ch...</div>
+      <div id="competitor-box" style="display:none;margin-top:12px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);overflow:hidden;">
+        <div style="background:var(--gray-100);padding:8px 12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.6px;color:var(--gray-600);display:flex;justify-content:space-between;">
+          <span>Competitor prices</span><span id="competitor-ts" style="font-weight:400;text-transform:none;letter-spacing:0;font-size:11px;"></span>
+        </div>
+        <div id="competitor-rows"></div>
+      </div>
+    <!-- Pricing & stock fields -->
+    <div class="card" id="tab-pricing" style="display:none;">
+      <div class="fields-grid">
         <div class="field-group">
           <label class="field-label">Inventory quantity</label>
           <input class="field-input" id="f-inventory" type="number" placeholder="0">
@@ -1062,7 +1244,7 @@ function populateFields(p) {
   setValue('f-title', p.name || '');
   setValue('f-description', p.description || '');
   setValue('f-vendor', p.brand || '');
-  setValue('f-type', p.type || '');
+  setSelect('f-type', mapToType(p.type || ''));
   setValue('f-category', p.category || 'Health & Beauty > Skin Care');
   setValue('f-tags', p.tags || '');
   setValue('f-sku', '');
@@ -1093,18 +1275,27 @@ function populateFields(p) {
   setTimeout(generateSKU, 50);
 }
 
+// Maps any AI-returned type string to one of the 9 fixed product types
+function mapToType(raw) {
+  const t = raw.toLowerCase();
+  if (/clean|foam|wash|micellar|oil cleans|remov/.test(t)) return 'CLEANSER';
+  if (/toner|mist|lotion|softener|first treat/.test(t)) return 'TONER';
+  if (/moistur|cream|barrier|emulsion|sleeping|night|gel cream|water cream/.test(t)) return 'MOISTURIZER';
+  if (/serum|ampoule|essence|booster|concentrate|treatment|ampule/.test(t)) return 'SERUM';
+  if (/eye|under.eye|dark circle|puffy/.test(t)) return 'EYE CARE';
+  if (/exfoli|peel|scrub|aha|bha|pha|pad/.test(t)) return 'EXFOLIATOR';
+  if (/mask|sheet|patch/.test(t)) return 'SHEET MASKS';
+  if (/sun|spf|uv|protect/.test(t)) return 'SUN CARE';
+  if (/access|tool|device|roller|brush|sponge|band|headband/.test(t)) return 'ACCESSORIES';
+  return '';
+}
+
 // ── SKU generation ────────────────────────────────────────────
 // Category code map: product type → 3-char category code
 const CATEGORY_CODES = {
-  'essence': 'ESS', 'serum': 'SRM', 'toner': 'TNR', 'moisturizer': 'MST',
-  'cream': 'CRM', 'sunscreen': 'SUN', 'spf': 'SUN', 'cleanser': 'CLN',
-  'cleansing': 'CLN', 'foam': 'CLN', 'oil': 'OIL', 'balm': 'BLM',
-  'mask': 'MSK', 'sheet mask': 'MSK', 'ampoule': 'AMP', 'mist': 'MST',
-  'lotion': 'LOT', 'exfoliant': 'EXF', 'peeling': 'EXF', 'scrub': 'EXF',
-  'eye cream': 'EYE', 'eye': 'EYE', 'lip': 'LIP', 'patch': 'PAT',
-  'primer': 'PRM', 'bb cream': 'BBC', 'cushion': 'CSH', 'pore': 'PRE',
-  'gel': 'GEL', 'serum essence': 'SRM', 'treatment': 'TRT', 'sleeping': 'MSK',
-  'pack': 'MSK', 'emulsion': 'EMU', 'concentrate': 'CON', 'booster': 'BST'
+  'cleanser': 'CLN', 'toner': 'TNR', 'moisturizer': 'MST',
+  'serum': 'SRM', 'eye care': 'EYE', 'exfoliator': 'EXF',
+  'sheet masks': 'MSK', 'sun care': 'SUN', 'accessories': 'ACC'
 };
 
 // Product keyword → 3-4 char product code
@@ -1134,18 +1325,9 @@ function generateSKU() {
   // 1. BRAND: first 3 consonant-rich chars, uppercase
   const brandCode = abbreviate(brand, 3);
 
-  // 2. CATEGORY: match type first, then scan title
-  let catCode = '';
+  // 2. CATEGORY: direct lookup from fixed type dropdown
   const typeLower = type.toLowerCase();
-  for (const [k, v] of Object.entries(CATEGORY_CODES)) {
-    if (typeLower.includes(k)) { catCode = v; break; }
-  }
-  if (!catCode) {
-    for (const [k, v] of Object.entries(CATEGORY_CODES)) {
-      if (title.includes(k)) { catCode = v; break; }
-    }
-  }
-  if (!catCode) catCode = abbreviate(type, 3);
+  let catCode = CATEGORY_CODES[typeLower] || '';
 
   // 3. PRODUCT: scan title for known ingredients/keywords
   let prodCode = '';
@@ -1401,6 +1583,174 @@ function exportCSV() {
   a.click();
   URL.revokeObjectURL(url);
 }
+
+// ── Competitor price lookup ───────────────────────────────────
+// Both niasha.ch and coree.ch run on Shopify.
+// Shopify exposes a public JSON endpoint at /products/[handle].js
+// We fetch it via Claude AI (web_search tool) since direct cross-origin
+// calls to third-party sites are blocked by CORS in the browser.
+// The AI searches for the product on both sites and returns structured prices.
+
+async function lookupCompetitorPrices() {
+  const title = gv('f-title');
+  const vendor = gv('f-vendor');
+  if (!title && !vendor) {
+    alert('Please fill in the product title first.');
+    return;
+  }
+
+  const btn = document.getElementById('btn-competitor');
+  const spinner = document.getElementById('competitor-spinner');
+  const box = document.getElementById('competitor-box');
+  const rows = document.getElementById('competitor-rows');
+
+  btn.disabled = true;
+  btn.textContent = 'Searching...';
+  spinner.style.display = 'block';
+  box.style.display = 'none';
+  rows.innerHTML = '';
+
+  const query = [vendor, title].filter(Boolean).join(' ');
+
+  try {
+    const res = await fetch(CLAUDE_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+        messages: [{
+          role: 'user',
+          content: `You are a pricing research assistant for a Swiss K-beauty store.
+
+Search for this product on niasha.ch AND coree.ch: "${query}"
+
+For each site, find the current CHF price. Return ONLY valid JSON, no markdown:
+{
+  "results": [
+    {
+      "site": "niasha.ch",
+      "found": true,
+      "price": 13.34,
+      "comparePrice": 14.50,
+      "url": "https://niasha.ch/products/...",
+      "inStock": true
+    },
+    {
+      "site": "coree.ch",
+      "found": true,
+      "price": 16.00,
+      "comparePrice": 21.00,
+      "url": "https://coree.ch/products/...",
+      "inStock": true
+    }
+  ]
+}
+
+If a product is not found on a site, set found: false and omit price/url.
+Only return CHF prices. Do not include markdown backticks.`
+        }]
+      })
+    });
+
+    const data = await res.json();
+
+    // Extract text from response (may include tool_use blocks)
+    const textBlocks = (data.content || []).filter(b => b.type === 'text');
+    const raw = textBlocks.map(b => b.text).join('');
+    const clean = raw.replace(/```json|```/g, '').trim();
+
+    let parsed;
+    try {
+      parsed = JSON.parse(clean);
+    } catch(e) {
+      // Try to extract JSON from within the text
+      const match = clean.match(/\{[\s\S]*\}/);
+      if (match) parsed = JSON.parse(match[0]);
+      else throw new Error('Could not parse competitor prices');
+    }
+
+    renderCompetitorPrices(parsed.results || []);
+
+  } catch(err) {
+    console.error('Competitor lookup error:', err);
+    rows.innerHTML = '<div style="padding:10px 12px;font-size:13px;color:var(--gray-600);">Could not retrieve competitor prices. Try again.</div>';
+    box.style.display = 'block';
+  } finally {
+    spinner.style.display = 'none';
+    btn.disabled = false;
+    btn.textContent = 'Check competitor prices';
+  }
+}
+
+function renderCompetitorPrices(results) {
+  const box = document.getElementById('competitor-box');
+  const rows = document.getElementById('competitor-rows');
+  const ts = document.getElementById('competitor-ts');
+  const myPrice = parseFloat(gv('f-price')) || null;
+
+  const now = new Date();
+  ts.textContent = now.toLocaleTimeString('fr-CH', { hour: '2-digit', minute: '2-digit' });
+
+  if (!results || results.length === 0) {
+    rows.innerHTML = '<div style="padding:10px 12px;font-size:13px;color:var(--gray-600);">No results found on either site.</div>';
+    box.style.display = 'block';
+    return;
+  }
+
+  rows.innerHTML = results.map(r => {
+    if (!r.found) {
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid var(--gray-200);">
+        <div>
+          <a href="https://${r.site}" target="_blank" style="font-size:13px;font-weight:500;color:var(--gray-800);text-decoration:none;">${r.site}</a>
+        </div>
+        <span style="font-size:12px;color:var(--gray-400);">Not listed</span>
+      </div>`;
+    }
+
+    // Price comparison badge
+    let badge = '';
+    if (myPrice && r.price) {
+      const diff = myPrice - r.price;
+      const pct = Math.abs(Math.round((diff / r.price) * 100));
+      if (diff > 0.5) {
+        badge = `<span style="font-size:11px;padding:2px 7px;border-radius:4px;background:#FEF2F2;color:#991B1B;font-weight:500;">+${pct}% vs yours</span>`;
+      } else if (diff < -0.5) {
+        badge = `<span style="font-size:11px;padding:2px 7px;border-radius:4px;background:var(--teal-light);color:var(--teal-dark);font-weight:500;">${pct}% cheaper</span>`;
+      } else {
+        badge = `<span style="font-size:11px;padding:2px 7px;border-radius:4px;background:var(--gray-100);color:var(--gray-600);font-weight:500;">Same price</span>`;
+      }
+    }
+
+    const stockBadge = r.inStock === false
+      ? `<span style="font-size:11px;color:var(--gray-400);margin-left:6px;">Out of stock</span>`
+      : '';
+
+    const compareStr = r.comparePrice && r.comparePrice > r.price
+      ? `<span style="font-size:12px;color:var(--gray-400);text-decoration:line-through;margin-left:6px;">CHF ${r.comparePrice.toFixed(2)}</span>`
+      : '';
+
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid var(--gray-200);">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <a href="${r.url || 'https://'+r.site}" target="_blank" style="font-size:13px;font-weight:500;color:var(--gray-800);text-decoration:none;">${r.site}</a>
+        ${stockBadge}
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
+        ${badge}
+        <span style="font-size:14px;font-weight:600;color:var(--gray-800);">CHF ${r.price.toFixed(2)}</span>
+        ${compareStr}
+      </div>
+    </div>`;
+  }).join('');
+
+  // Remove last border
+  const lastRow = rows.querySelector('div:last-child');
+  if (lastRow) lastRow.style.borderBottom = 'none';
+
+  box.style.display = 'block';
+}
+
 </script>
 </body>
 </html>
