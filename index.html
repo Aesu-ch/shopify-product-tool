@@ -521,6 +521,22 @@
   .sync-dot.ok { background: var(--teal); }
   .sync-dot.err { background: var(--coral); }
 
+
+  .inv-tag {
+    display: inline-flex; align-items: center;
+    font-size: 11px; padding: 2px 8px; border-radius: 4px;
+    font-weight: 500; white-space: nowrap;
+  }
+  .inv-tag-new { background: var(--teal-light); color: var(--teal-dark); }
+  .inv-tag-imported { background: var(--gray-100); color: var(--gray-600); }
+  .inv-tag-dupe { background: #FEF3C7; color: #92400E; }
+  .inv-checkbox {
+    width: 16px; height: 16px; cursor: pointer; flex-shrink: 0;
+    accent-color: var(--coral);
+  }
+  .inv-actions { display: flex; gap: 4px; flex-shrink: 0; }
+  .inv-actions .btn { padding: 3px 8px; font-size: 11px; }
+
 </style>
 </head>
 <body>
@@ -554,7 +570,7 @@
     <!-- Top-level tab: Add vs History -->
     <div class="tab-nav" style="margin-bottom:20px;">
       <button class="tab-btn active" id="home-tab-add" onclick="switchHomeTab('add')">+ Add product</button>
-      <button class="tab-btn" id="home-tab-history" onclick="switchHomeTab('history')">History</button>
+      <button class="tab-btn" id="home-tab-history" onclick="switchHomeTab('history')">Inventory</button>
     </div>
 
     <!-- Add panel -->
@@ -609,8 +625,11 @@
     <div id="home-history-panel" style="display:none;">
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-          <div class="card-title" style="margin-bottom:0;">All products (<span id="history-count">0</span>)</div>
-          <button class="btn btn-ghost" onclick="clearAllHistory()" style="font-size:12px;padding:4px 10px;color:var(--gray-400);">Clear all</button>
+          <div class="card-title" style="margin-bottom:0;">Inventory (<span id="history-count">0</span>)</div>
+          <div style="display:flex;gap:6px;">
+            <button class="btn btn-ghost" onclick="exportSelectedCSV()" id="btn-export-selected" style="font-size:12px;padding:4px 10px;">⬇ Export selected</button>
+            <button class="btn btn-ghost" onclick="clearAllHistory()" style="font-size:12px;padding:4px 10px;color:var(--gray-400);">Clear all</button>
+          </div>
         </div>
         <input class="history-search" id="history-search" type="text" placeholder="Search by name, brand, SKU..." oninput="debounceHistory()">
         <div id="history-list"></div>
@@ -889,38 +908,17 @@
   <!-- STEP 5: Export -->
   <section class="section" id="step-5">
     <div class="section-heading">
-      <h2>Export to Shopify</h2>
-      <p>Download your product list as a Shopify-ready CSV or Excel file.</p>
+      <h2>Product saved!</h2>
+      <p>Your product has been added to the inventory.</p>
     </div>
-
-    <div id="success-msg" style="display:none;">
-      <div class="success-box">
-        <div class="success-icon">✓</div>
-        <h3>Product saved!</h3>
-        <p>Added to your export list below.</p>
-      </div>
+    <div class="success-box" id="success-msg">
+      <div class="success-icon">✓</div>
+      <h3 id="success-title"></h3>
+      <p>Saved to inventory. Go to the Inventory tab to export it.</p>
     </div>
-
-    <div class="card">
-      <div class="card-title">Products ready for export (<span id="export-count">0</span>)</div>
-      <div class="product-list" id="product-list">
-        <p style="color:var(--gray-400);font-size:13px;text-align:center;padding:24px;">No products yet. Go back to add products.</p>
-      </div>
-    </div>
-
-    <div class="card" style="display:flex;gap:12px;flex-wrap:wrap;">
-      <button class="btn btn-teal" style="flex:1;" onclick="exportCSV()">⬇ Download CSV (Shopify import)</button>
-      <button class="btn btn-ghost" style="flex:1;" onclick="addAnother()">+ Add another product</button>
-    </div>
-
-    <div class="card" style="background:var(--gray-100);border-style:dashed;">
-      <div class="card-title">How to import into Shopify</div>
-      <ol style="padding-left:18px;font-size:13px;color:var(--gray-600);line-height:2;">
-        <li>Go to <strong>Shopify Admin → Products</strong></li>
-        <li>Click <strong>Import</strong> in the top right</li>
-        <li>Upload the downloaded CSV file</li>
-        <li>Map columns if prompted, then confirm import</li>
-      </ol>
+    <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;">
+      <button class="btn btn-coral" style="flex:1;" onclick="addAnother()">+ Add another product</button>
+      <button class="btn btn-ghost" style="flex:1;" onclick="goToInventory()">View inventory →</button>
     </div>
   </section>
 
@@ -1037,15 +1035,16 @@ async function renderHistory() {
   const listEl = document.getElementById('history-list');
   if (!listEl) return;
 
-  listEl.innerHTML = '<div class="history-empty" style="color:var(--gray-400);">Loading...</div>';
-
+  listEl.innerHTML = '<div class="history-empty" style="color:var(--gray-400);">Loading inventory...</div>';
   const history = await loadAllHistory();
-  countEl.textContent = history.length;
 
-  if (history.length === 0) {
-    listEl.innerHTML = '<div class="history-empty">No products added yet.</div>';
-    return;
-  }
+  const titleCounts = {}, skuCounts = {};
+  history.forEach(p => {
+    const t = (p['Title'] || '').toLowerCase();
+    const s = (p['SKU'] || '').toLowerCase();
+    if (t) titleCounts[t] = (titleCounts[t] || 0) + 1;
+    if (s) skuCounts[s] = (skuCounts[s] || 0) + 1;
+  });
 
   const query = (document.getElementById('history-search')?.value || '').toLowerCase().trim();
   const filtered = query
@@ -1053,28 +1052,45 @@ async function renderHistory() {
         (p['Title'] || '').toLowerCase().includes(query) ||
         (p['Vendor'] || '').toLowerCase().includes(query) ||
         (p['SKU'] || '').toLowerCase().includes(query) ||
-        (p['Type'] || '').toLowerCase().includes(query)
-      )
+        (p['Type'] || '').toLowerCase().includes(query))
     : history;
 
+  countEl.textContent = history.length;
+
+  if (history.length === 0) {
+    listEl.innerHTML = '<div class="history-empty">No products yet. Add your first product.</div>';
+    return;
+  }
   if (filtered.length === 0) {
     listEl.innerHTML = '<div class="history-empty">No matches for "' + escHtml(query) + '"</div>';
     return;
   }
 
   listEl.innerHTML = filtered.map(p => {
-    const date = p._savedAt
-      ? new Date(p._savedAt).toLocaleDateString('fr-CH', { day: '2-digit', month: '2-digit', year: '2-digit' })
-      : '—';
     const supaId = p._supaId || '';
-    return '<div class="history-item">' +
-      '<div class="history-date">' + date + '</div>' +
+    const date = p._savedAt ? new Date(p._savedAt).toLocaleDateString('fr-CH', {day:'2-digit',month:'2-digit',year:'2-digit'}) : '—';
+    const fd = p.full_data || p;
+    const imported = fd._imported || false;
+    const isDupe = (titleCounts[(p['Title']||'').toLowerCase()] > 1) || (p['SKU'] && skuCounts[(p['SKU']||'').toLowerCase()] > 1);
+    const price = p['Price'] ? parseFloat(p['Price']) : null;
+    const tagImported = imported
+      ? '<span class="inv-tag inv-tag-imported">Exported</span>'
+      : '<span class="inv-tag inv-tag-new">Not exported</span>';
+    const tagDupe = isDupe ? '<span class="inv-tag inv-tag-dupe">⚠ Duplicate</span>' : '';
+    return '<div class="history-item" style="align-items:flex-start;gap:8px;">' +
+      '<input type="checkbox" class="inv-checkbox inv-select" data-id="' + supaId + '" style="margin-top:3px;">' +
       '<div style="flex:1;min-width:0;">' +
-        '<div style="font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escHtml(p['Title'] || 'Untitled') + '</div>' +
-        '<div style="color:var(--gray-600);font-size:12px;">' + escHtml(p['Vendor'] || '') + (p['Type'] ? ' · ' + escHtml(p['Type']) : '') + (p['SKU'] ? ' · ' + escHtml(p['SKU']) : '') + '</div>' +
+        '<div style="font-weight:500;font-size:13px;margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escHtml(p['Title'] || 'Untitled') + '</div>' +
+        '<div style="color:var(--gray-600);font-size:12px;margin-bottom:5px;">' +
+          escHtml(p['Vendor'] || '') + (p['Type'] ? ' · ' + escHtml(p['Type']) : '') + (p['SKU'] ? ' · ' + escHtml(p['SKU']) : '') + ' · ' + date +
+        '</div>' +
+        '<div style="display:flex;gap:4px;flex-wrap:wrap;">' + tagImported + tagDupe + '</div>' +
       '</div>' +
-      (p['Price'] ? '<span class="history-badge">CHF ' + parseFloat(p['Price']).toFixed(2) + '</span>' : '') +
-      '<button class="btn btn-ghost" onclick="deleteHistory(\'' + supaId + '\')" style="padding:3px 8px;font-size:11px;flex-shrink:0;">✕</button>' +
+      (price ? '<span style="font-size:13px;font-weight:600;color:var(--teal-dark);white-space:nowrap;">CHF ' + price.toFixed(2) + '</span>' : '') +
+      '<div class="inv-actions">' +
+        '<button class="btn btn-ghost" onclick="editProduct(\'' + supaId + '\')" title="Edit">✏️</button>' +
+        '<button class="btn btn-ghost" onclick="deleteHistory(\'' + supaId + '\')" title="Delete" style="color:var(--coral);">🗑</button>' +
+      '</div>' +
     '</div>';
   }).join('');
 }
@@ -1649,22 +1665,26 @@ async function saveProduct() {
     const existing = await checkDuplicate(title, sku);
     if (existing) {
       const proceed = confirm(
-        'This product already exists in your history:\n\n"' +
-        (existing.title || title) + '" (SKU: ' + (existing.sku || '—') + ')\n\nAdd anyway?'
+        'A product with this title or SKU already exists in your inventory:\n\n"' +
+        (existing.title || title) + '" (SKU: ' + (existing.sku || '—') + ')\n\nSave anyway? It will be flagged as a duplicate.'
       );
       if (!proceed) {
         if (btn) { btn.disabled = false; btn.textContent = '✓ Save product'; }
         return;
       }
     }
-    const product = { ...currentFields, _savedAt: new Date().toISOString() };
+    const isDupe = !!existing;
+    const product = {
+      ...currentFields,
+      _savedAt: new Date().toISOString(),
+      _imported: false,
+      _duplicate: isDupe
+    };
     await pushToHistory(product);
-    savedProducts.push(product);
-    renderProductList();
-    await renderHistory();
-    showStep(5, true);
+    // Show step 5 confirmation
+    document.getElementById('success-title').textContent = title || 'Product saved';
     document.getElementById('success-msg').style.display = 'block';
-    setTimeout(() => document.getElementById('success-msg').style.display = 'none', 4000);
+    showStep(5, true);
   } catch(e) {
     alert('Could not save. Check your connection.\n' + e.message);
   } finally {
@@ -1672,30 +1692,8 @@ async function saveProduct() {
   }
 }
 
-function renderProductList() {
-  const list = document.getElementById('product-list');
-  document.getElementById('export-count').textContent = savedProducts.length;
-  if (savedProducts.length === 0) {
-    list.innerHTML = '<p style="color:var(--gray-400);font-size:13px;text-align:center;padding:24px;">No products yet.</p>';
-    return;
-  }
-  list.innerHTML = savedProducts.map((p, i) => `
-    <div class="product-item">
-      <div class="product-item-num">${i + 1}</div>
-      <div class="product-item-info">
-        <div class="product-item-name">${escHtml(p['Title'] || 'Untitled')}</div>
-        <div class="product-item-sub">${escHtml(p['Vendor'] || '')} · ${escHtml(p['Type'] || '')} · SKU: ${escHtml(p['SKU'] || '—')}</div>
-      </div>
-      <div class="product-item-price">${p['Price'] ? 'CHF ' + p['Price'] : '—'}</div>
-      <button class="btn btn-ghost" style="padding:4px 10px;font-size:12px;" onclick="removeProduct(${i})">✕</button>
-    </div>
-  `).join('');
-}
-
-function removeProduct(i) {
-  savedProducts.splice(i, 1);
-  renderProductList();
-}
+function renderProductList() { /* no-op: inventory is the source of truth */ }
+function removeProduct(i) { /* no-op */ }
 
 
 function addAnother() {
@@ -1710,29 +1708,80 @@ function addAnother() {
   document.getElementById('search-input').value = '';
   document.getElementById('btn-analyze').disabled = true;
   showStep(1, true);
+  switchHomeTab('add');
 }
 
-// ── Export CSV ────────────────────────────────────────────────
-function exportCSV() {
-  if (savedProducts.length === 0) {
-    alert('No products to export. Add at least one product first.');
-    return;
-  }
-  const headers = Object.keys(savedProducts[0]);
-  const rows = [headers, ...savedProducts.map(p => headers.map(h => p[h] || ''))];
-  const csv = rows.map(row => row.map(cell => {
-    const s = String(cell);
-    if (s.includes(',') || s.includes('"') || s.includes('\n')) return '"' + s.replace(/"/g, '""') + '"';
-    return s;
-  }).join(',')).join('\r\n');
+function goToInventory() {
+  showStep(1, true);
+  switchHomeTab('history');
+}
 
+// ── CSV export helpers ────────────────────────────────────────
+const SHOPIFY_HEADERS = ['Title','URL handle','Description','Vendor','Product category','Type','Tags',
+  'Published on online store','Status','SKU','Barcode','Option1 name','Option1 value','Option1 Linked To',
+  'Option2 name','Option2 value','Option2 Linked To','Option3 name','Option3 value','Option3 Linked To',
+  'Price','Compare-at price','Cost per item','Charge tax','Tax code','Unit price total measure',
+  'Unit price total measure unit','Unit price base measure','Unit price base measure unit',
+  'Inventory tracker','Inventory quantity','Continue selling when out of stock','Weight value (grams)',
+  'Weight unit for display','Requires shipping','Fulfillment service','Product image URL',
+  'Image position','Image alt text','Variant image URL','Gift card','SEO title','SEO description',
+  'Color (product.metafields.shopify.color-pattern)','Google Shopping / Google product category',
+  'Google Shopping / Gender','Google Shopping / Age group','Google Shopping / Manufacturer part number (MPN)',
+  'Google Shopping / Ad group name','Google Shopping / Ads labels','Google Shopping / Condition',
+  'Google Shopping / Custom product','Google Shopping / Custom label 0','Google Shopping / Custom label 1',
+  'Google Shopping / Custom label 2','Google Shopping / Custom label 3','Google Shopping / Custom label 4'];
+
+function buildCSV(products) {
+  const rows = [SHOPIFY_HEADERS, ...products.map(p => {
+    const data = p.full_data || p;
+    return SHOPIFY_HEADERS.map(h => {
+      const val = String(data[h] || '');
+      if (val.includes(',') || val.includes('"') || val.includes('\n'))
+        return '"' + val.replace(/"/g, '""') + '"';
+      return val;
+    });
+  })];
+  return rows.map(r => r.join(',')).join('\r\n');
+}
+
+function downloadCSV(csv, filename) {
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'shopify-products-' + new Date().toISOString().slice(0, 10) + '.csv';
+  a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+function exportCSV() { exportSelectedCSV(); }
+
+async function exportSelectedCSV() {
+  const checkboxes = document.querySelectorAll('.inv-select:checked');
+  if (checkboxes.length === 0) {
+    alert('Select at least one product from the inventory to export.');
+    return;
+  }
+  const ids = Array.from(checkboxes).map(cb => cb.dataset.id);
+  const allProducts = await loadAllHistory();
+  const selected = allProducts.filter(p => ids.includes(p._supaId));
+
+  const csv = buildCSV(selected);
+  downloadCSV(csv, 'shopify-export-' + new Date().toISOString().slice(0,10) + '.csv');
+
+  // Mark as imported in Supabase
+  for (const p of selected) {
+    if (p._supaId) {
+      try {
+        await fetch(SUPA_URL + '/rest/v1/shopify_products?id=eq.' + p._supaId, {
+          method: 'PATCH',
+          headers: { ...SUPA_HEADERS, 'Prefer': 'return=minimal' },
+          body: JSON.stringify({ full_data: { ...(p.full_data || p), _imported: true, _savedAt: p._savedAt, _duplicate: p._duplicate } })
+        });
+      } catch(e) { console.warn('Could not mark as imported:', e); }
+    }
+  }
+  await renderHistory();
 }
 
 // ── Competitor price lookup ───────────────────────────────────
@@ -1947,6 +1996,84 @@ function clearImageFile() {
   setValue('f-image-url', '');
 }
 
+
+// ── Edit product from inventory ───────────────────────────────
+async function editProduct(supaId) {
+  if (!supaId) return;
+  try {
+    const res = await fetch(SUPA_URL + '/rest/v1/shopify_products?id=eq.' + supaId, { headers: SUPA_HEADERS });
+    const rows = await res.json();
+    if (!rows.length) { alert('Product not found.'); return; }
+    const row = rows[0];
+    const data = row.full_data || {};
+
+    // Load into form fields
+    populateFields({
+      name: data['Title'], brand: data['Vendor'], type: data['Type'],
+      description: data['Description'], price: data['Price'],
+      comparePrice: data['Compare-at price'], weight: data['Weight value (grams)'],
+      tags: data['Tags'], category: data['Product category'],
+      imageUrl: data['Product image URL'], color: data['Color (product.metafields.shopify.color-pattern)'],
+      seoTitle: data['SEO title'], seoDescription: data['SEO description'],
+      keyIngredients: ''
+    });
+    // Set fields not covered by populateFields
+    setValue('f-sku', data['SKU'] || '');
+    setValue('f-barcode', data['Barcode'] || '');
+    setValue('f-cost', data['Cost per item'] || '');
+    setValue('f-inventory', data['Inventory quantity'] || '');
+    setValue('f-handle', data['URL handle'] || '');
+
+    // Tag the edit so save overwrites the same record
+    currentFields = { ...data };
+    window._editingSupaId = supaId;
+
+    // Change save button to "Update"
+    const btn = document.querySelector('#step-4 .btn-teal');
+    if (btn) btn.textContent = '✓ Update product';
+
+    showStep(3, true);
+    switchHomeTab('add');
+  } catch(e) {
+    alert('Could not load product: ' + e.message);
+  }
+}
+
+// Override saveProduct to handle updates
+const _origSaveProduct = saveProduct;
+async function saveProduct() {
+  if (window._editingSupaId) {
+    // Update mode
+    const supaId = window._editingSupaId;
+    const btn = document.querySelector('#step-4 .btn-teal');
+    if (btn) { btn.disabled = true; btn.textContent = 'Updating...'; }
+    try {
+      const product = { ...currentFields, _savedAt: currentFields._savedAt || new Date().toISOString() };
+      await fetch(SUPA_URL + '/rest/v1/shopify_products?id=eq.' + supaId, {
+        method: 'PATCH',
+        headers: { ...SUPA_HEADERS, 'Prefer': 'return=minimal' },
+        body: JSON.stringify({
+          title: product['Title'] || null,
+          vendor: product['Vendor'] || null,
+          type: product['Type'] || null,
+          sku: product['SKU'] || null,
+          price: product['Price'] ? parseFloat(product['Price']) : null,
+          full_data: product
+        })
+      });
+      window._editingSupaId = null;
+      if (btn) btn.textContent = '✓ Save product';
+      document.getElementById('success-title').textContent = product['Title'] || 'Product updated';
+      document.getElementById('success-msg').style.display = 'block';
+      showStep(5, true);
+    } catch(e) {
+      alert('Could not update: ' + e.message);
+    } finally {
+      if (btn) { btn.disabled = false; }
+    }
+  } else {
+    await _origSaveProduct();
+  }
+}
+
 </script>
-</body>
-</html>
