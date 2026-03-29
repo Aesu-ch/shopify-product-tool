@@ -5,18 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>K-Beauty Product Adder</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js">
-// ── Home tab (Add / History) ──────────────────────────────────
-function switchHomeTab(tab) {
-  const isHistory = tab === 'history';
-  document.getElementById('home-add-panel').style.display = isHistory ? 'none' : 'block';
-  document.getElementById('home-history-panel').style.display = isHistory ? 'block' : 'none';
-  document.getElementById('home-tab-add').classList.toggle('active', !isHistory);
-  document.getElementById('home-tab-history').classList.toggle('active', isHistory);
-  if (isHistory) renderHistory();
-}
-
-</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root {
     --coral: #D85A30;
@@ -1900,6 +1889,16 @@ function renderCompetitorPrices(results) {
 
 // Init history on page load
 document.addEventListener('DOMContentLoaded', () => { checkSync(); });
+
+// ── Home tab (Add / History) ──────────────────────────────────
+function switchHomeTab(tab) {
+  const isHistory = tab === 'history';
+  document.getElementById('home-add-panel').style.display = isHistory ? 'none' : 'block';
+  document.getElementById('home-history-panel').style.display = isHistory ? 'block' : 'none';
+  document.getElementById('home-tab-add').classList.toggle('active', !isHistory);
+  document.getElementById('home-tab-history').classList.toggle('active', isHistory);
+  if (isHistory) renderHistory();
+}
 </script>
 </body>
 </html>
