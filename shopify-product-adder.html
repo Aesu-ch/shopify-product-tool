@@ -1,0 +1,1273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>K-Beauty Product Adder</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --coral: #D85A30;
+    --coral-light: #FAECE7;
+    --coral-mid: #F0997B;
+    --teal: #1D9E75;
+    --teal-light: #E1F5EE;
+    --teal-dark: #0F6E56;
+    --gray-100: #F5F4F1;
+    --gray-200: #E8E6E1;
+    --gray-400: #B4B2A9;
+    --gray-600: #5F5E5A;
+    --gray-800: #2C2C2A;
+    --white: #FFFFFF;
+    --radius: 12px;
+    --radius-sm: 8px;
+    --font: 'DM Sans', sans-serif;
+    --mono: 'DM Mono', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font);
+    background: var(--gray-100);
+    color: var(--gray-800);
+    min-height: 100vh;
+    font-size: 14px;
+  }
+
+  /* Header */
+  .header {
+    background: var(--white);
+    border-bottom: 1px solid var(--gray-200);
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 56px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .header-logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 600;
+    font-size: 15px;
+    letter-spacing: -0.3px;
+  }
+  .logo-dot { width: 8px; height: 8px; background: var(--coral); border-radius: 50%; }
+  .header-steps {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .step-pill {
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+    background: var(--gray-100);
+    color: var(--gray-400);
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .step-pill.active {
+    background: var(--coral);
+    color: white;
+  }
+  .step-pill.done {
+    background: var(--teal-light);
+    color: var(--teal-dark);
+  }
+  .step-sep { color: var(--gray-400); font-size: 11px; }
+
+  /* Layout */
+  .main { max-width: 900px; margin: 0 auto; padding: 24px 16px 80px; }
+
+  /* Section */
+  .section { display: none; }
+  .section.active { display: block; }
+
+  /* Cards */
+  .card {
+    background: var(--white);
+    border-radius: var(--radius);
+    border: 1px solid var(--gray-200);
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  .card-title {
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--gray-400);
+    margin-bottom: 16px;
+  }
+
+  /* Upload zone */
+  .upload-zone {
+    border: 2px dashed var(--gray-200);
+    border-radius: var(--radius);
+    padding: 48px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    background: var(--gray-100);
+  }
+  .upload-zone:hover, .upload-zone.dragover {
+    border-color: var(--coral);
+    background: var(--coral-light);
+  }
+  .upload-zone input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+  }
+  .upload-icon {
+    width: 48px;
+    height: 48px;
+    background: var(--white);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 12px;
+    border: 1px solid var(--gray-200);
+    font-size: 22px;
+  }
+  .upload-zone h3 { font-size: 15px; font-weight: 500; margin-bottom: 4px; }
+  .upload-zone p { color: var(--gray-600); font-size: 13px; }
+
+  /* Search */
+  .search-wrap {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .search-input {
+    flex: 1;
+    padding: 10px 14px;
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-sm);
+    font-family: var(--font);
+    font-size: 14px;
+    outline: none;
+    transition: border 0.2s;
+    background: var(--gray-100);
+  }
+  .search-input:focus { border-color: var(--coral); background: var(--white); }
+  .btn {
+    padding: 10px 18px;
+    border-radius: var(--radius-sm);
+    border: none;
+    font-family: var(--font);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn-coral { background: var(--coral); color: white; }
+  .btn-coral:hover { background: #C04E27; }
+  .btn-ghost {
+    background: var(--white);
+    border: 1px solid var(--gray-200);
+    color: var(--gray-600);
+  }
+  .btn-ghost:hover { background: var(--gray-100); }
+  .btn-teal { background: var(--teal); color: white; }
+  .btn-teal:hover { background: var(--teal-dark); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-lg { padding: 12px 24px; font-size: 15px; width: 100%; }
+
+  /* Image preview */
+  .image-preview {
+    position: relative;
+    display: none;
+    margin-bottom: 16px;
+  }
+  .image-preview img {
+    width: 100%;
+    max-height: 300px;
+    object-fit: contain;
+    border-radius: var(--radius-sm);
+    background: var(--gray-100);
+  }
+  .image-preview-label {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    background: rgba(0,0,0,0.6);
+    color: white;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+
+  /* Loading spinner */
+  .spinner {
+    display: none;
+    text-align: center;
+    padding: 32px;
+    color: var(--gray-600);
+    font-size: 13px;
+  }
+  .spin-ring {
+    width: 32px;
+    height: 32px;
+    border: 3px solid var(--gray-200);
+    border-top-color: var(--coral);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    margin: 0 auto 12px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Results grid */
+  .results-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+    margin-top: 8px;
+  }
+  .result-card {
+    border: 1.5px solid var(--gray-200);
+    border-radius: var(--radius-sm);
+    padding: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+    background: var(--white);
+  }
+  .result-card:hover { border-color: var(--coral); }
+  .result-card.selected { border-color: var(--coral); background: var(--coral-light); }
+  .result-card-img {
+    width: 100%;
+    height: 120px;
+    object-fit: contain;
+    border-radius: 6px;
+    background: var(--gray-100);
+    margin-bottom: 8px;
+  }
+  .result-card-name { font-size: 13px; font-weight: 500; margin-bottom: 3px; line-height: 1.4; }
+  .result-card-sub { font-size: 12px; color: var(--gray-600); }
+  .result-card-badge {
+    display: inline-block;
+    margin-top: 6px;
+    padding: 2px 8px;
+    background: var(--teal-light);
+    color: var(--teal-dark);
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+
+  /* Fields form */
+  .fields-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  @media (max-width: 600px) { .fields-grid { grid-template-columns: 1fr; } }
+  .field-full { grid-column: 1 / -1; }
+  .field-group { display: flex; flex-direction: column; gap: 4px; }
+  .field-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--gray-600);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .field-required { color: var(--coral); }
+  .field-input, .field-select, .field-textarea {
+    padding: 9px 12px;
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-sm);
+    font-family: var(--font);
+    font-size: 14px;
+    outline: none;
+    transition: border 0.2s;
+    width: 100%;
+    color: var(--gray-800);
+    background: var(--white);
+  }
+  .field-input:focus, .field-select:focus, .field-textarea:focus {
+    border-color: var(--coral);
+  }
+  .field-textarea { resize: vertical; min-height: 80px; }
+  .field-ai-tag {
+    font-size: 10px;
+    background: var(--coral-light);
+    color: var(--coral);
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-weight: 500;
+  }
+
+  /* Section heading */
+  .section-heading {
+    margin-bottom: 20px;
+  }
+  .section-heading h2 {
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.5px;
+    margin-bottom: 4px;
+  }
+  .section-heading p { color: var(--gray-600); font-size: 14px; }
+
+  /* Tab nav */
+  .tab-nav {
+    display: flex;
+    gap: 4px;
+    background: var(--gray-100);
+    padding: 4px;
+    border-radius: var(--radius-sm);
+    margin-bottom: 16px;
+  }
+  .tab-btn {
+    flex: 1;
+    padding: 7px 12px;
+    border: none;
+    background: transparent;
+    border-radius: 6px;
+    font-family: var(--font);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    color: var(--gray-600);
+    transition: all 0.15s;
+  }
+  .tab-btn.active { background: var(--white); color: var(--gray-800); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+
+  /* Review table */
+  .review-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .review-table tr { border-bottom: 1px solid var(--gray-200); }
+  .review-table tr:last-child { border-bottom: none; }
+  .review-table td { padding: 8px 4px; }
+  .review-table td:first-child { color: var(--gray-600); width: 45%; font-weight: 500; }
+  .review-table td:last-child { font-family: var(--mono); font-size: 12px; word-break: break-all; }
+
+  /* Success */
+  .success-box {
+    background: var(--teal-light);
+    border: 1px solid #9FE1CB;
+    border-radius: var(--radius);
+    padding: 24px;
+    text-align: center;
+    margin-bottom: 16px;
+  }
+  .success-icon { font-size: 36px; margin-bottom: 12px; }
+  .success-box h3 { font-size: 18px; font-weight: 600; color: var(--teal-dark); margin-bottom: 4px; }
+  .success-box p { color: var(--teal); font-size: 13px; }
+
+  /* Bottom bar */
+  .bottom-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--white);
+    border-top: 1px solid var(--gray-200);
+    padding: 12px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 100;
+    gap: 12px;
+  }
+  .bottom-bar-left { display: flex; align-items: center; gap: 8px; }
+  .product-count {
+    font-size: 12px;
+    background: var(--gray-100);
+    padding: 4px 10px;
+    border-radius: 20px;
+    color: var(--gray-600);
+    font-weight: 500;
+  }
+  .product-count span { color: var(--coral); font-weight: 600; }
+
+  /* Divider */
+  .divider {
+    height: 1px;
+    background: var(--gray-200);
+    margin: 16px 0;
+  }
+
+  /* Alert */
+  .alert {
+    padding: 10px 14px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    margin-bottom: 12px;
+    display: none;
+  }
+  .alert-error { background: #FEF2F2; border: 1px solid #FECACA; color: #991B1B; }
+  .alert-info { background: var(--coral-light); border: 1px solid var(--coral-mid); color: var(--coral); }
+
+  /* Product list */
+  .product-list { display: flex; flex-direction: column; gap: 8px; }
+  .product-item {
+    background: var(--white);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-sm);
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 13px;
+  }
+  .product-item-num {
+    width: 24px;
+    height: 24px;
+    background: var(--gray-100);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--gray-600);
+    flex-shrink: 0;
+  }
+  .product-item-info { flex: 1; }
+  .product-item-name { font-weight: 500; margin-bottom: 2px; }
+  .product-item-sub { color: var(--gray-600); font-size: 12px; }
+  .product-item-price { font-weight: 600; color: var(--teal-dark); font-size: 13px; }
+
+  /* Mode toggle */
+  .mode-toggle {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .mode-btn {
+    flex: 1;
+    padding: 10px;
+    border: 1.5px solid var(--gray-200);
+    border-radius: var(--radius-sm);
+    background: var(--white);
+    font-family: var(--font);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: center;
+    color: var(--gray-600);
+  }
+  .mode-btn.active { border-color: var(--coral); background: var(--coral-light); color: var(--coral); }
+
+  /* Responsive */
+  @media (max-width: 640px) {
+    .header-steps { display: none; }
+    .header { padding: 0 16px; }
+    .main { padding: 16px 12px 80px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="header">
+  <div class="header-logo">
+    <div class="logo-dot"></div>
+    K-Beauty Inventory
+  </div>
+  <div class="header-steps">
+    <span class="step-pill active" id="pill-1" onclick="showStep(1)">① Capture</span>
+    <span class="step-sep">›</span>
+    <span class="step-pill" id="pill-2" onclick="showStep(2)">② Select</span>
+    <span class="step-sep">›</span>
+    <span class="step-pill" id="pill-3" onclick="showStep(3)">③ Edit fields</span>
+    <span class="step-sep">›</span>
+    <span class="step-pill" id="pill-4" onclick="showStep(4)">④ Review & save</span>
+    <span class="step-sep">›</span>
+    <span class="step-pill" id="pill-5" onclick="showStep(5)">⑤ Export</span>
+  </div>
+</header>
+
+<!-- Main -->
+<div class="main">
+
+  <!-- STEP 1: Capture -->
+  <section class="section active" id="step-1">
+    <div class="section-heading">
+      <h2>Add a product</h2>
+      <p>Upload a photo or search by name to identify your K-beauty product.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Input method</div>
+      <div class="mode-toggle">
+        <button class="mode-btn active" id="mode-photo" onclick="setMode('photo')">📷 Photo</button>
+        <button class="mode-btn" id="mode-search" onclick="setMode('search')">🔍 Search</button>
+      </div>
+
+      <!-- Photo mode -->
+      <div id="photo-panel">
+        <div class="upload-zone" id="upload-zone">
+          <input type="file" id="file-input" accept="image/*" capture="environment" onchange="handleFileUpload(event)">
+          <div class="upload-icon">📷</div>
+          <h3>Take or upload a photo</h3>
+          <p>JPG, PNG, WEBP • Tap to use camera on mobile</p>
+        </div>
+        <div class="image-preview" id="image-preview">
+          <img id="preview-img" src="" alt="Product photo">
+          <span class="image-preview-label">Uploaded photo</span>
+        </div>
+      </div>
+
+      <!-- Search mode -->
+      <div id="search-panel" style="display:none;">
+        <div class="search-wrap">
+          <input class="search-input" id="search-input" type="text" placeholder="e.g. COSRX Snail Mucin 96% Power Repairing Essence 100ml" onkeydown="if(event.key==='Enter')analyzeSearch()">
+          <button class="btn btn-coral" onclick="analyzeSearch()">Search</button>
+        </div>
+      </div>
+
+      <div class="alert alert-error" id="alert-capture"></div>
+
+      <button class="btn btn-coral btn-lg" id="btn-analyze" onclick="analyze()" style="margin-top:12px;" disabled>
+        Identify product with AI →
+      </button>
+    </div>
+
+    <div class="spinner" id="spinner-1">
+      <div class="spin-ring"></div>
+      Analyzing product with AI...
+    </div>
+  </section>
+
+  <!-- STEP 2: Select product -->
+  <section class="section" id="step-2">
+    <div class="section-heading">
+      <h2>Select the product</h2>
+      <p>Pick the correct match from AI results.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">AI identified these matches</div>
+      <div class="results-grid" id="results-grid"></div>
+      <div class="alert alert-error" id="alert-select" style="margin-top:12px;"></div>
+    </div>
+    <div class="bottom-bar">
+      <button class="btn btn-ghost" onclick="showStep(1)">← Back</button>
+      <button class="btn btn-coral" id="btn-select" onclick="confirmSelection()" disabled>Use this product →</button>
+    </div>
+  </section>
+
+  <!-- STEP 3: Edit fields -->
+  <section class="section" id="step-3">
+    <div class="section-heading">
+      <h2>Review & edit product fields</h2>
+      <p>All fields are pre-filled by AI. Edit any value before saving.</p>
+    </div>
+
+    <div class="tab-nav">
+      <button class="tab-btn active" onclick="switchTab('core')">Core</button>
+      <button class="tab-btn" onclick="switchTab('pricing')">Pricing & stock</button>
+      <button class="tab-btn" onclick="switchTab('seo')">SEO & meta</button>
+      <button class="tab-btn" onclick="switchTab('shipping')">Shipping</button>
+    </div>
+
+    <!-- Core fields -->
+    <div class="card" id="tab-core">
+      <div class="fields-grid">
+        <div class="field-group field-full">
+          <label class="field-label">Title <span class="field-required">*</span> <span class="field-ai-tag">AI</span></label>
+          <input class="field-input" id="f-title" type="text" placeholder="Product title">
+        </div>
+        <div class="field-group field-full">
+          <label class="field-label">Description <span class="field-ai-tag">AI</span></label>
+          <textarea class="field-textarea" id="f-description" rows="3" placeholder="Product description..."></textarea>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Vendor / Brand <span class="field-required">*</span> <span class="field-ai-tag">AI</span></label>
+          <input class="field-input" id="f-vendor" type="text" placeholder="e.g. COSRX">
+        </div>
+        <div class="field-group">
+          <label class="field-label">Type <span class="field-ai-tag">AI</span></label>
+          <input class="field-input" id="f-type" type="text" placeholder="e.g. Essence, Serum, Toner...">
+        </div>
+        <div class="field-group">
+          <label class="field-label">Product category <span class="field-ai-tag">AI</span></label>
+          <input class="field-input" id="f-category" type="text" placeholder="Shopify category">
+        </div>
+        <div class="field-group">
+          <label class="field-label">Tags <span class="field-ai-tag">AI</span></label>
+          <input class="field-input" id="f-tags" type="text" placeholder="tag1, tag2, tag3">
+        </div>
+        <div class="field-group">
+          <label class="field-label">SKU</label>
+          <input class="field-input" id="f-sku" type="text" placeholder="e.g. COSRX-SNL-100">
+        </div>
+        <div class="field-group">
+          <label class="field-label">Barcode / EAN</label>
+          <input class="field-input" id="f-barcode" type="text" placeholder="Barcode or EAN">
+        </div>
+        <div class="field-group">
+          <label class="field-label">Status</label>
+          <select class="field-select" id="f-status">
+            <option value="Active">Active</option>
+            <option value="Draft">Draft</option>
+            <option value="Archived">Archived</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Published on online store</label>
+          <select class="field-select" id="f-published">
+            <option value="TRUE">Yes</option>
+            <option value="FALSE">No</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Product image URL <span class="field-ai-tag">AI</span></label>
+          <input class="field-input" id="f-image-url" type="text" placeholder="https://...">
+        </div>
+        <div class="field-group">
+          <label class="field-label">Image alt text <span class="field-ai-tag">AI</span></label>
+          <input class="field-input" id="f-image-alt" type="text" placeholder="Describe the image">
+        </div>
+      </div>
+    </div>
+
+    <!-- Pricing & stock fields -->
+    <div class="card" id="tab-pricing" style="display:none;">
+      <div class="fields-grid">
+        <div class="field-group">
+          <label class="field-label">Price (CHF) <span class="field-required">*</span> <span class="field-ai-tag">AI</span></label>
+          <input class="field-input" id="f-price" type="number" step="0.01" placeholder="0.00">
+        </div>
+        <div class="field-group">
+          <label class="field-label">Compare-at price (CHF) <span class="field-ai-tag">AI</span></label>
+          <input class="field-input" id="f-compare-price" type="number" step="0.01" placeholder="0.00">
+        </div>
+        <div class="field-group">
+          <label class="field-label">Cost per item (CHF)</label>
+          <input class="field-input" id="f-cost" type="number" step="0.01" placeholder="0.00">
+        </div>
+        <div class="field-group">
+          <label class="field-label">Inventory quantity</label>
+          <input class="field-input" id="f-inventory" type="number" placeholder="0">
+        </div>
+        <div class="field-group">
+          <label class="field-label">Inventory tracker</label>
+          <select class="field-select" id="f-tracker">
+            <option value="shopify">Shopify</option>
+            <option value="">None</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Continue selling when out of stock</label>
+          <select class="field-select" id="f-oversell">
+            <option value="DENY">No (deny)</option>
+            <option value="CONTINUE">Yes (continue)</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Charge tax</label>
+          <select class="field-select" id="f-tax">
+            <option value="TRUE">Yes</option>
+            <option value="FALSE">No</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Gift card</label>
+          <select class="field-select" id="f-giftcard">
+            <option value="FALSE">No</option>
+            <option value="TRUE">Yes</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- SEO fields -->
+    <div class="card" id="tab-seo" style="display:none;">
+      <div class="fields-grid">
+        <div class="field-group">
+          <label class="field-label">URL handle <span class="field-ai-tag">AI</span></label>
+          <input class="field-input" id="f-handle" type="text" placeholder="product-url-handle">
+        </div>
+        <div class="field-group">
+          <label class="field-label">SEO title <span class="field-ai-tag">AI</span></label>
+          <input class="field-input" id="f-seo-title" type="text" placeholder="SEO title (max 60 chars)">
+        </div>
+        <div class="field-group field-full">
+          <label class="field-label">SEO description <span class="field-ai-tag">AI</span></label>
+          <textarea class="field-textarea" id="f-seo-desc" placeholder="SEO description (max 160 chars)..."></textarea>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Google Shopping / Category <span class="field-ai-tag">AI</span></label>
+          <input class="field-input" id="f-gsc" type="text" placeholder="e.g. Health & Beauty > Skin Care">
+        </div>
+        <div class="field-group">
+          <label class="field-label">Google Shopping / Condition</label>
+          <select class="field-select" id="f-condition">
+            <option value="New">New</option>
+            <option value="Used">Used</option>
+            <option value="Refurbished">Refurbished</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Color (metafield) <span class="field-ai-tag">AI</span></label>
+          <input class="field-input" id="f-color" type="text" placeholder="e.g. clear; white">
+        </div>
+      </div>
+    </div>
+
+    <!-- Shipping fields -->
+    <div class="card" id="tab-shipping" style="display:none;">
+      <div class="fields-grid">
+        <div class="field-group">
+          <label class="field-label">Weight (grams) <span class="field-ai-tag">AI</span></label>
+          <input class="field-input" id="f-weight" type="number" placeholder="e.g. 150">
+        </div>
+        <div class="field-group">
+          <label class="field-label">Weight unit for display</label>
+          <select class="field-select" id="f-weight-unit">
+            <option value="g">g</option>
+            <option value="kg">kg</option>
+            <option value="oz">oz</option>
+            <option value="lb">lb</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Requires shipping</label>
+          <select class="field-select" id="f-shipping">
+            <option value="TRUE">Yes</option>
+            <option value="FALSE">No</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Fulfillment service</label>
+          <select class="field-select" id="f-fulfillment">
+            <option value="manual">Manual</option>
+            <option value="shopify">Shopify</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="bottom-bar">
+      <button class="btn btn-ghost" onclick="showStep(2)">← Back</button>
+      <button class="btn btn-coral" onclick="goToReview()">Review product →</button>
+    </div>
+  </section>
+
+  <!-- STEP 4: Review & save -->
+  <section class="section" id="step-4">
+    <div class="section-heading">
+      <h2>Review & save</h2>
+      <p>Check all values before adding this product to your export list.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">Product summary</div>
+      <div id="review-content"></div>
+    </div>
+    <div class="bottom-bar">
+      <button class="btn btn-ghost" onclick="showStep(3)">← Edit</button>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-teal" onclick="saveProduct()">✓ Save product</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 5: Export -->
+  <section class="section" id="step-5">
+    <div class="section-heading">
+      <h2>Export to Shopify</h2>
+      <p>Download your product list as a Shopify-ready CSV or Excel file.</p>
+    </div>
+
+    <div id="success-msg" style="display:none;">
+      <div class="success-box">
+        <div class="success-icon">✓</div>
+        <h3>Product saved!</h3>
+        <p>Added to your export list below.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Products ready for export (<span id="export-count">0</span>)</div>
+      <div class="product-list" id="product-list">
+        <p style="color:var(--gray-400);font-size:13px;text-align:center;padding:24px;">No products yet. Go back to add products.</p>
+      </div>
+    </div>
+
+    <div class="card" style="display:flex;gap:12px;flex-wrap:wrap;">
+      <button class="btn btn-teal" style="flex:1;" onclick="exportCSV()">⬇ Download CSV (Shopify import)</button>
+      <button class="btn btn-ghost" style="flex:1;" onclick="addAnother()">+ Add another product</button>
+    </div>
+
+    <div class="card" style="background:var(--gray-100);border-style:dashed;">
+      <div class="card-title">How to import into Shopify</div>
+      <ol style="padding-left:18px;font-size:13px;color:var(--gray-600);line-height:2;">
+        <li>Go to <strong>Shopify Admin → Products</strong></li>
+        <li>Click <strong>Import</strong> in the top right</li>
+        <li>Upload the downloaded CSV file</li>
+        <li>Map columns if prompted, then confirm import</li>
+      </ol>
+    </div>
+  </section>
+
+</div>
+
+<!-- Bottom bar placeholder for steps that don't use it -->
+<div style="height:0px;"></div>
+
+<script>
+const CLAUDE_API = "https://cours-proxy.naomi-c-lovera.workers.dev/";
+
+let currentStep = 1;
+let currentMode = 'photo';
+let uploadedImageBase64 = null;
+let uploadedImageType = null;
+let selectedProduct = null;
+let savedProducts = [];
+let currentFields = {};
+
+// ── Step navigation ───────────────────────────────────────────
+function showStep(n, force) {
+  if (n > 1 && !force) {
+    if (n === 2 && !uploadedImageBase64 && !document.getElementById('search-input').value) return;
+    if (n === 3 && !selectedProduct) return;
+  }
+  currentStep = n;
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.getElementById('step-' + n).classList.add('active');
+  document.querySelectorAll('.step-pill').forEach((p, i) => {
+    p.classList.remove('active', 'done');
+    if (i + 1 < n) p.classList.add('done');
+    if (i + 1 === n) p.classList.add('active');
+  });
+  window.scrollTo(0, 0);
+}
+
+// ── Mode toggle ───────────────────────────────────────────────
+function setMode(mode) {
+  currentMode = mode;
+  document.getElementById('mode-photo').classList.toggle('active', mode === 'photo');
+  document.getElementById('mode-search').classList.toggle('active', mode === 'search');
+  document.getElementById('photo-panel').style.display = mode === 'photo' ? 'block' : 'none';
+  document.getElementById('search-panel').style.display = mode === 'search' ? 'block' : 'none';
+  updateAnalyzeBtn();
+}
+
+// ── File upload ───────────────────────────────────────────────
+function handleFileUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const result = ev.target.result;
+    uploadedImageBase64 = result.split(',')[1];
+    uploadedImageType = file.type;
+    const preview = document.getElementById('image-preview');
+    document.getElementById('preview-img').src = result;
+    preview.style.display = 'block';
+    document.getElementById('upload-zone').style.display = 'none';
+    updateAnalyzeBtn();
+  };
+  reader.readAsDataURL(file);
+}
+
+// Drag-drop
+const uz = document.getElementById('upload-zone');
+uz.addEventListener('dragover', e => { e.preventDefault(); uz.classList.add('dragover'); });
+uz.addEventListener('dragleave', () => uz.classList.remove('dragover'));
+uz.addEventListener('drop', e => {
+  e.preventDefault();
+  uz.classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file && file.type.startsWith('image/')) {
+    const fakeEvt = { target: { files: [file] } };
+    handleFileUpload(fakeEvt);
+  }
+});
+
+function updateAnalyzeBtn() {
+  const btn = document.getElementById('btn-analyze');
+  if (currentMode === 'photo') btn.disabled = !uploadedImageBase64;
+  else btn.disabled = !document.getElementById('search-input').value.trim();
+}
+
+document.getElementById('search-input').addEventListener('input', updateAnalyzeBtn);
+
+function analyzeSearch() { analyze(); }
+
+// ── AI Analysis ───────────────────────────────────────────────
+async function analyze() {
+  const alertEl = document.getElementById('alert-capture');
+  alertEl.style.display = 'none';
+  document.getElementById('spinner-1').style.display = 'block';
+  document.getElementById('btn-analyze').disabled = true;
+
+  try {
+    let messages;
+    if (currentMode === 'photo' && uploadedImageBase64) {
+      messages = [{
+        role: 'user',
+        content: [
+          {
+            type: 'image',
+            source: { type: 'base64', media_type: uploadedImageType, data: uploadedImageBase64 }
+          },
+          {
+            type: 'text',
+            text: `You are a Korean skincare product expert. Analyze this product image and identify the product.
+Return ONLY valid JSON — no markdown, no explanation — in this exact format:
+{
+  "products": [
+    {
+      "name": "Full product name with size/volume",
+      "brand": "Brand name",
+      "type": "Product type (Essence/Serum/Toner/Cream/Sunscreen/Cleanser/etc)",
+      "volume": "Volume in ml or g",
+      "keyIngredients": "Main active ingredients",
+      "description": "2-3 sentence product description in English",
+      "category": "Health & Beauty > Skin Care > [subcategory]",
+      "tags": "korean skincare, k-beauty, [type], [brand], [ingredient]",
+      "price": estimated CHF retail price as number,
+      "comparePrice": suggested compare-at price as number or null,
+      "weight": estimated weight in grams as number,
+      "imageUrl": "",
+      "seoTitle": "SEO optimized title under 60 chars",
+      "seoDescription": "SEO meta description under 160 chars",
+      "color": "product color/finish keywords",
+      "confidence": "high/medium/low"
+    }
+  ]
+}
+Provide 2-3 product variations if there are size options. Make all prices in CHF for Swiss market.`
+          }
+        ]
+      }];
+    } else {
+      const query = document.getElementById('search-input').value.trim();
+      messages = [{
+        role: 'user',
+        content: `You are a Korean skincare product expert. The user is searching for: "${query}"
+Return ONLY valid JSON — no markdown, no explanation — in this exact format:
+{
+  "products": [
+    {
+      "name": "Full product name with size/volume",
+      "brand": "Brand name",
+      "type": "Product type (Essence/Serum/Toner/Cream/Sunscreen/Cleanser/etc)",
+      "volume": "Volume in ml or g",
+      "keyIngredients": "Main active ingredients",
+      "description": "2-3 sentence product description in English",
+      "category": "Health & Beauty > Skin Care > [subcategory]",
+      "tags": "korean skincare, k-beauty, [type], [brand], [ingredient]",
+      "price": estimated CHF retail price as number,
+      "comparePrice": suggested compare-at price as number or null,
+      "weight": estimated weight in grams as number,
+      "imageUrl": "",
+      "seoTitle": "SEO optimized title under 60 chars",
+      "seoDescription": "SEO meta description under 160 chars",
+      "color": "product color/finish keywords",
+      "confidence": "high/medium/low"
+    }
+  ]
+}
+Provide 2-3 product variations (different sizes, if applicable). Make prices in CHF for the Swiss market.`
+      }];
+    }
+
+    const res = await fetch(CLAUDE_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        messages
+      })
+    });
+
+    const data = await res.json();
+    const text = data.content.map(b => b.text || '').join('');
+    const clean = text.replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(clean);
+
+    if (!parsed.products || parsed.products.length === 0) throw new Error('No products found');
+
+    renderResults(parsed.products);
+    showStep(2, true);
+
+  } catch (err) {
+    console.error(err);
+    alertEl.textContent = 'Could not identify the product. Please try again or switch to search mode.';
+    alertEl.style.display = 'block';
+    document.getElementById('btn-analyze').disabled = false;
+  } finally {
+    document.getElementById('spinner-1').style.display = 'none';
+    document.getElementById('btn-analyze').disabled = false;
+  }
+}
+
+// ── Render results ────────────────────────────────────────────
+function renderResults(products) {
+  const grid = document.getElementById('results-grid');
+  grid.innerHTML = '';
+  selectedProduct = null;
+  document.getElementById('btn-select').disabled = true;
+
+  products.forEach((p, i) => {
+    const card = document.createElement('div');
+    card.className = 'result-card';
+    card.innerHTML = `
+      ${p.imageUrl ? `<img class="result-card-img" src="${p.imageUrl}" onerror="this.style.display='none'">` : `<div class="result-card-img" style="display:flex;align-items:center;justify-content:center;font-size:36px;">🧴</div>`}
+      <div class="result-card-name">${p.name}</div>
+      <div class="result-card-sub">${p.brand} · ${p.type}</div>
+      <div class="result-card-sub">${p.volume || ''}</div>
+      <div class="result-card-badge">CHF ${p.price}</div>
+      <div style="font-size:11px;color:var(--gray-400);margin-top:4px;">${p.confidence === 'high' ? '✓ High confidence' : p.confidence === 'medium' ? '~ Medium confidence' : '? Low confidence'}</div>
+    `;
+    card.addEventListener('click', () => {
+      document.querySelectorAll('.result-card').forEach(c => c.classList.remove('selected'));
+      card.classList.add('selected');
+      selectedProduct = p;
+      document.getElementById('btn-select').disabled = false;
+    });
+    grid.appendChild(card);
+  });
+}
+
+// ── Confirm selection ─────────────────────────────────────────
+function confirmSelection() {
+  if (!selectedProduct) return;
+  populateFields(selectedProduct);
+  showStep(3, true);
+}
+
+function populateFields(p) {
+  const slug = (p.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  setValue('f-title', p.name || '');
+  setValue('f-description', p.description || '');
+  setValue('f-vendor', p.brand || '');
+  setValue('f-type', p.type || '');
+  setValue('f-category', p.category || 'Health & Beauty > Skin Care');
+  setValue('f-tags', p.tags || '');
+  setValue('f-sku', '');
+  setValue('f-barcode', '');
+  setValue('f-price', p.price || '');
+  setValue('f-compare-price', p.comparePrice || '');
+  setValue('f-cost', '');
+  setValue('f-inventory', '0');
+  setValue('f-image-url', p.imageUrl || '');
+  setValue('f-image-alt', p.name || '');
+  setValue('f-handle', slug);
+  setValue('f-seo-title', p.seoTitle || p.name || '');
+  setValue('f-seo-desc', p.seoDescription || p.description || '');
+  setValue('f-gsc', p.category || 'Health & Beauty > Skin Care');
+  setValue('f-color', p.color || '');
+  setValue('f-weight', p.weight || '');
+  setSelect('f-status', 'Active');
+  setSelect('f-published', 'TRUE');
+  setSelect('f-tax', 'TRUE');
+  setSelect('f-tracker', 'shopify');
+  setSelect('f-oversell', 'DENY');
+  setSelect('f-shipping', 'TRUE');
+  setSelect('f-fulfillment', 'manual');
+  setSelect('f-giftcard', 'FALSE');
+  setSelect('f-condition', 'New');
+  setSelect('f-weight-unit', 'g');
+}
+
+function setValue(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.value = val;
+}
+function setSelect(id, val) {
+  const el = document.getElementById(id);
+  if (el) {
+    for (let o of el.options) { if (o.value === val) { el.value = val; break; } }
+  }
+}
+
+// ── Tabs ─────────────────────────────────────────────────────
+function switchTab(tab) {
+  ['core','pricing','seo','shipping'].forEach(t => {
+    document.getElementById('tab-' + t).style.display = t === tab ? 'block' : 'none';
+  });
+  document.querySelectorAll('.tab-btn').forEach((b, i) => {
+    b.classList.toggle('active', ['core','pricing','seo','shipping'][i] === tab);
+  });
+}
+
+// ── Review ────────────────────────────────────────────────────
+function goToReview() {
+  const fields = collectFields();
+  if (!fields.Title) {
+    switchTab('core');
+    alert('Please enter a product title.');
+    return;
+  }
+  renderReview(fields);
+  showStep(4, true);
+}
+
+function collectFields() {
+  return {
+    'Title': gv('f-title'),
+    'URL handle': gv('f-handle'),
+    'Description': gv('f-description'),
+    'Vendor': gv('f-vendor'),
+    'Product category': gv('f-category'),
+    'Type': gv('f-type'),
+    'Tags': gv('f-tags'),
+    'Published on online store': gv('f-published'),
+    'Status': gv('f-status'),
+    'SKU': gv('f-sku'),
+    'Barcode': gv('f-barcode'),
+    'Option1 name': '',
+    'Option1 value': '',
+    'Option1 Linked To': '',
+    'Option2 name': '',
+    'Option2 value': '',
+    'Option2 Linked To': '',
+    'Option3 name': '',
+    'Option3 value': '',
+    'Option3 Linked To': '',
+    'Price': gv('f-price'),
+    'Compare-at price': gv('f-compare-price'),
+    'Cost per item': gv('f-cost'),
+    'Charge tax': gv('f-tax'),
+    'Tax code': '',
+    'Unit price total measure': '',
+    'Unit price total measure unit': '',
+    'Unit price base measure': '',
+    'Unit price base measure unit': '',
+    'Inventory tracker': gv('f-tracker'),
+    'Inventory quantity': gv('f-inventory'),
+    'Continue selling when out of stock': gv('f-oversell'),
+    'Weight value (grams)': gv('f-weight'),
+    'Weight unit for display': gv('f-weight-unit'),
+    'Requires shipping': gv('f-shipping'),
+    'Fulfillment service': gv('f-fulfillment'),
+    'Product image URL': gv('f-image-url'),
+    'Image position': '1',
+    'Image alt text': gv('f-image-alt'),
+    'Variant image URL': '',
+    'Gift card': gv('f-giftcard'),
+    'SEO title': gv('f-seo-title'),
+    'SEO description': gv('f-seo-desc'),
+    'Color (product.metafields.shopify.color-pattern)': gv('f-color'),
+    'Google Shopping / Google product category': gv('f-gsc'),
+    'Google Shopping / Gender': '',
+    'Google Shopping / Age group': '',
+    'Google Shopping / Manufacturer part number (MPN)': gv('f-sku'),
+    'Google Shopping / Ad group name': '',
+    'Google Shopping / Ads labels': '',
+    'Google Shopping / Condition': gv('f-condition'),
+    'Google Shopping / Custom product': '',
+    'Google Shopping / Custom label 0': '',
+    'Google Shopping / Custom label 1': '',
+    'Google Shopping / Custom label 2': '',
+    'Google Shopping / Custom label 3': '',
+    'Google Shopping / Custom label 4': ''
+  };
+}
+
+function gv(id) {
+  const el = document.getElementById(id);
+  return el ? el.value.trim() : '';
+}
+
+function renderReview(fields) {
+  const priority = ['Title','Vendor','Type','Price','Compare-at price','Cost per item','SKU','Barcode','Inventory quantity','Status','Published on online store','Tags','Product category','Description'];
+  let html = '<table class="review-table">';
+  priority.forEach(k => {
+    if (fields[k] !== undefined && fields[k] !== '') {
+      html += `<tr><td>${k}</td><td>${escHtml(fields[k])}</td></tr>`;
+    }
+  });
+  html += '</table>';
+  document.getElementById('review-content').innerHTML = html;
+  currentFields = fields;
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Save product ──────────────────────────────────────────────
+function saveProduct() {
+  savedProducts.push({ ...currentFields });
+  renderProductList();
+  showStep(5, true);
+  document.getElementById('success-msg').style.display = 'block';
+  setTimeout(() => document.getElementById('success-msg').style.display = 'none', 4000);
+}
+
+function renderProductList() {
+  const list = document.getElementById('product-list');
+  document.getElementById('export-count').textContent = savedProducts.length;
+  if (savedProducts.length === 0) {
+    list.innerHTML = '<p style="color:var(--gray-400);font-size:13px;text-align:center;padding:24px;">No products yet.</p>';
+    return;
+  }
+  list.innerHTML = savedProducts.map((p, i) => `
+    <div class="product-item">
+      <div class="product-item-num">${i + 1}</div>
+      <div class="product-item-info">
+        <div class="product-item-name">${escHtml(p['Title'] || 'Untitled')}</div>
+        <div class="product-item-sub">${escHtml(p['Vendor'] || '')} · ${escHtml(p['Type'] || '')} · SKU: ${escHtml(p['SKU'] || '—')}</div>
+      </div>
+      <div class="product-item-price">${p['Price'] ? 'CHF ' + p['Price'] : '—'}</div>
+      <button class="btn btn-ghost" style="padding:4px 10px;font-size:12px;" onclick="removeProduct(${i})">✕</button>
+    </div>
+  `).join('');
+}
+
+function removeProduct(i) {
+  savedProducts.splice(i, 1);
+  renderProductList();
+}
+
+function addAnother() {
+  uploadedImageBase64 = null;
+  uploadedImageType = null;
+  selectedProduct = null;
+  currentFields = {};
+  document.getElementById('file-input').value = '';
+  document.getElementById('preview-img').src = '';
+  document.getElementById('image-preview').style.display = 'none';
+  document.getElementById('upload-zone').style.display = 'block';
+  document.getElementById('search-input').value = '';
+  document.getElementById('btn-analyze').disabled = true;
+  showStep(1, true);
+}
+
+// ── Export CSV ────────────────────────────────────────────────
+function exportCSV() {
+  if (savedProducts.length === 0) {
+    alert('No products to export. Add at least one product first.');
+    return;
+  }
+  const headers = Object.keys(savedProducts[0]);
+  const rows = [headers, ...savedProducts.map(p => headers.map(h => p[h] || ''))];
+  const csv = rows.map(row => row.map(cell => {
+    const s = String(cell);
+    if (s.includes(',') || s.includes('"') || s.includes('\n')) return '"' + s.replace(/"/g, '""') + '"';
+    return s;
+  }).join(',')).join('\r\n');
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'shopify-products-' + new Date().toISOString().slice(0, 10) + '.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+</script>
+</body>
+</html>
