@@ -712,6 +712,22 @@
           <label class="field-label">Image alt text <span class="field-ai-tag">AI</span></label>
           <input class="field-input" id="f-image-alt" type="text" placeholder="Describe the image">
         </div>
+        <div class="field-group field-full">
+          <label class="field-label">Image source
+            <span style="font-size:11px;font-weight:400;color:var(--gray-400);margin-left:4px;">upload a file to host it, or paste a URL above</span>
+          </label>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <label style="flex:1;display:flex;align-items:center;gap:8px;padding:9px 12px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);cursor:pointer;background:var(--gray-100);font-size:13px;color:var(--gray-600);transition:border 0.2s;" id="img-upload-label">
+              <span>📁</span> <span id="img-upload-name">Choose image file...</span>
+              <input type="file" id="f-image-file" accept="image/*" style="display:none;" onchange="handleImageFile(event)">
+            </label>
+            <button class="btn btn-ghost" onclick="clearImageFile()" style="padding:9px 10px;font-size:13px;" title="Clear">✕</button>
+          </div>
+          <div id="img-preview-thumb" style="display:none;margin-top:8px;">
+            <img id="img-thumb" src="" style="max-height:80px;max-width:160px;border-radius:6px;border:1px solid var(--gray-200);object-fit:contain;background:var(--gray-100);">
+            <div style="font-size:11px;color:var(--teal-dark);margin-top:4px;">✓ Image ready — URL will be generated on export</div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1899,6 +1915,38 @@ function switchHomeTab(tab) {
   document.getElementById('home-tab-history').classList.toggle('active', isHistory);
   if (isHistory) renderHistory();
 }
+
+// ── Image file upload (for image source field) ────────────────
+let uploadedProductImageBase64 = null;
+let uploadedProductImageMime = null;
+
+function handleImageFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  document.getElementById('img-upload-name').textContent = file.name;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const result = ev.target.result;
+    uploadedProductImageBase64 = result.split(',')[1];
+    uploadedProductImageMime = file.type;
+    const thumb = document.getElementById('img-preview-thumb');
+    document.getElementById('img-thumb').src = result;
+    thumb.style.display = 'block';
+    // Also set as the image URL field (data URI for preview; user can replace with CDN URL)
+    setValue('f-image-url', result);
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearImageFile() {
+  document.getElementById('f-image-file').value = '';
+  document.getElementById('img-upload-name').textContent = 'Choose image file...';
+  document.getElementById('img-preview-thumb').style.display = 'none';
+  uploadedProductImageBase64 = null;
+  uploadedProductImageMime = null;
+  setValue('f-image-url', '');
+}
+
 </script>
 </body>
 </html>
