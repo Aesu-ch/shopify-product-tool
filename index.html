@@ -5,7 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>K-Beauty Product Adder</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js">
+// ── Home tab (Add / History) ──────────────────────────────────
+function switchHomeTab(tab) {
+  const isHistory = tab === 'history';
+  document.getElementById('home-add-panel').style.display = isHistory ? 'none' : 'block';
+  document.getElementById('home-history-panel').style.display = isHistory ? 'block' : 'none';
+  document.getElementById('home-tab-add').classList.toggle('active', !isHistory);
+  document.getElementById('home-tab-history').classList.toggle('active', isHistory);
+  if (isHistory) renderHistory();
+}
+
+</script>
 <style>
   :root {
     --coral: #D85A30;
@@ -550,13 +561,21 @@
 
   <!-- STEP 1: Capture -->
   <section class="section active" id="step-1">
-    <div class="section-heading">
-      <h2>Add a product</h2>
-      <p>Upload a photo or search by name to identify your K-beauty product.</p>
+
+    <!-- Top-level tab: Add vs History -->
+    <div class="tab-nav" style="margin-bottom:20px;">
+      <button class="tab-btn active" id="home-tab-add" onclick="switchHomeTab('add')">+ Add product</button>
+      <button class="tab-btn" id="home-tab-history" onclick="switchHomeTab('history')">History</button>
     </div>
 
-    <div class="card">
-      <div class="card-title">Input method</div>
+    <!-- Add panel -->
+    <div id="home-add-panel">
+      <div class="section-heading">
+        <h2>Add a product</h2>
+        <p>Upload a photo or search by name to identify your K-beauty product.</p>
+      </div>
+      <div class="card">
+        <div class="card-title">Input method</div>
       <div class="mode-toggle">
         <button class="mode-btn active" id="mode-photo" onclick="setMode('photo')">📷 Photo</button>
         <button class="mode-btn" id="mode-search" onclick="setMode('search')">🔍 Search</button>
@@ -595,6 +614,20 @@
       <div class="spin-ring"></div>
       Analyzing product with AI...
     </div>
+    </div><!-- /home-add-panel -->
+
+    <!-- History panel -->
+    <div id="home-history-panel" style="display:none;">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <div class="card-title" style="margin-bottom:0;">All products (<span id="history-count">0</span>)</div>
+          <button class="btn btn-ghost" onclick="clearAllHistory()" style="font-size:12px;padding:4px 10px;color:var(--gray-400);">Clear all</button>
+        </div>
+        <input class="history-search" id="history-search" type="text" placeholder="Search by name, brand, SKU..." oninput="debounceHistory()">
+        <div id="history-list"></div>
+      </div>
+    </div><!-- /home-history-panel -->
+
   </section>
 
   <!-- STEP 2: Select product -->
@@ -873,16 +906,6 @@
     <div class="card" style="display:flex;gap:12px;flex-wrap:wrap;">
       <button class="btn btn-teal" style="flex:1;" onclick="exportCSV()">⬇ Download CSV (Shopify import)</button>
       <button class="btn btn-ghost" style="flex:1;" onclick="addAnother()">+ Add another product</button>
-    </div>
-
-    <!-- All-time history panel -->
-    <div class="card" id="history-card">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-        <div class="card-title" style="margin-bottom:0;">All-time history (<span id="history-count">0</span>)</div>
-        <button class="btn btn-ghost" onclick="clearAllHistory()" style="font-size:12px;padding:4px 10px;color:var(--gray-400);">Clear all</button>
-      </div>
-      <input class="history-search" id="history-search" type="text" placeholder="Search by name, brand, SKU..." oninput="debounceHistory()">
-      <div id="history-list"></div>
     </div>
 
     <div class="card" style="background:var(--gray-100);border-style:dashed;">
@@ -1876,7 +1899,7 @@ function renderCompetitorPrices(results) {
 
 
 // Init history on page load
-document.addEventListener('DOMContentLoaded', () => { renderHistory(); checkSync(); });
+document.addEventListener('DOMContentLoaded', () => { checkSync(); });
 </script>
 </body>
 </html>
